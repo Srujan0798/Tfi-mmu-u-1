@@ -1,0 +1,8 @@
+{
+  "name": "Tfi తmmuḍu",
+  "description": " The ultimate interactive calendar and AI companion for the Telugu Film Industry. Track releases, sync with creators, and chat with a TFI-obsessed AI.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
