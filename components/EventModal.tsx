@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { TFIEvent, EventCategory, OTTProvider, ReminderType } from '../types';
 import TicketingModal from './TicketingModal';
@@ -6,7 +5,7 @@ import TicketingModal from './TicketingModal';
 interface EventModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (event: TFIEvent) => void;
+  onSave: (event: TFIEvent, shouldClose?: boolean) => void;
   onDelete: (id: string) => void;
   event?: TFIEvent | null; // If present, we are editing
   selectedDate?: Date | null; // If adding, this is the default date
@@ -29,6 +28,13 @@ const OTT_PROVIDERS: { id: OTTProvider, name: string, color: string }[] = [
     { id: 'ZEE5', name: 'Zee5', color: 'bg-purple-600' },
     { id: 'SONYLIV', name: 'SonyLIV', color: 'bg-indigo-500' },
     { id: 'ETV_WIN', name: 'ETV Win', color: 'bg-red-500' },
+];
+
+const REMINDER_OPTIONS: { id: ReminderType; label: string }[] = [
+    { id: '1_DAY', label: '1 Day Before' },
+    { id: '1_HOUR', label: '1 Hour Before' },
+    { id: 'ON_START', label: 'On Event Start' },
+    { id: 'NONE', label: 'No Reminder' }
 ];
 
 const EventModal: React.FC<EventModalProps> = ({ 
@@ -99,9 +105,14 @@ const EventModal: React.FC<EventModalProps> = ({
 
   const handleSetReminder = (type: ReminderType) => {
       setReminder(type);
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 2000);
-      // In a real app, this would trigger a backend save or notification schedule
+      if (!isEditing) {
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 2000);
+          if (event) {
+              // Immediately persist if in View mode
+              onSave({ ...event, reminderType: type }, false);
+          }
+      }
   };
 
   if (!isOpen) return null;
@@ -354,12 +365,7 @@ const EventModal: React.FC<EventModalProps> = ({
                         Remind Me
                     </h4>
                     <div className="grid grid-cols-2 gap-2">
-                        {[
-                            { id: '1_DAY', label: '1 Day Before' },
-                            { id: '1_HOUR', label: '1 Hour Before' },
-                            { id: 'ON_START', label: 'On Event Start' },
-                            { id: 'NONE', label: 'No Reminder' }
-                        ].map(opt => (
+                        {REMINDER_OPTIONS.map(opt => (
                             <button
                                 key={opt.id}
                                 onClick={() => handleSetReminder(opt.id as ReminderType)}
@@ -519,6 +525,30 @@ const EventModal: React.FC<EventModalProps> = ({
                         />
                         <span className="material-icons-round absolute left-2.5 top-2.5 text-slate-500 text-sm">location_on</span>
                     </div>
+                </div>
+                
+                {/* Reminder Settings (New) */}
+                <div>
+                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Set Reminder</label>
+                     <div className="grid grid-cols-2 gap-2">
+                         {REMINDER_OPTIONS.map(opt => (
+                             <button
+                                 key={opt.id}
+                                 type="button"
+                                 onClick={() => handleSetReminder(opt.id as ReminderType)}
+                                 className={`flex items-center gap-2 p-2 rounded-lg text-xs font-medium border transition-all ${
+                                     reminder === opt.id 
+                                     ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/50' 
+                                     : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600'
+                                 }`}
+                             >
+                                 <div className={`w-3 h-3 rounded-full border flex items-center justify-center ${reminder === opt.id ? 'border-yellow-500' : 'border-slate-500'}`}>
+                                     {reminder === opt.id && <div className="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>}
+                                 </div>
+                                 {opt.label}
+                             </button>
+                         ))}
+                     </div>
                 </div>
 
                 {/* Description */}

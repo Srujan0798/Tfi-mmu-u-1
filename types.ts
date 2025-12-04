@@ -114,6 +114,23 @@ export interface AIPrediction {
   reasoning: string;
 }
 
+export interface TrendFactor {
+    name: string;
+    val: number;
+    color: string;
+}
+
+export interface BoxOfficeAnalysis {
+    movieName: string;
+    predictedReleaseDate: string;
+    openingDayEstimate: string;
+    lifetimeEstimate: string;
+    confidence: number;
+    trendFactors: TrendFactor[];
+    reasoning: string;
+    graphData?: number[]; // Array of values 0-100 for the graph
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'model';

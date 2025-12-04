@@ -23,7 +23,9 @@ const MediaAnalysis: React.FC<MediaAnalysisProps> = ({ onResult }) => {
                 const base64Data = reader.result as string;
                 const base64Content = base64Data.split(',')[1];
 
-                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                // Safe Key Access
+                const apiKey = (typeof process !== "undefined" && process.env) ? process.env.API_KEY : "";
+                const ai = new GoogleGenAI({ apiKey });
                 
                 let model = 'gemini-3-pro-preview'; // Default for images
                 let prompt = "Analyze this image related to Telugu Film Industry. Identify the movie, actor, or event.";

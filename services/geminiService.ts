@@ -1,9 +1,10 @@
 
 import { GoogleGenAI, Chat, ChatSession, Type } from "@google/genai";
-import { TFIEvent, EventCategory, UserPreferences, QuizQuestion, AIPrediction } from "../types";
+import { TFIEvent, EventCategory, UserPreferences, QuizQuestion, AIPrediction, BoxOfficeAnalysis } from "../types";
 
-// Initialize Gemini Client
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize Gemini Client with safe API Key access
+const apiKey = (typeof process !== "undefined" && process.env) ? process.env.API_KEY : "";
+const ai = new GoogleGenAI({ apiKey });
 
 const BASE_SYSTEM_INSTRUCTION = `
 You are "Chaitanya", the TFI (Telugu Film Industry) Intelligence. 
@@ -212,5 +213,49 @@ export const fetchLiveFeed = async (): Promise<any[]> => {
     } catch (e) {
         console.error("Feed fetch error", e);
         return [];
+    }
+};
+
+// Analyze Box Office for AI Lab
+export const analyzeBoxOffice = async (movieName: string): Promise<BoxOfficeAnalysis | null> => {
+    try {
+        const prompt = `
+        Analyze the potential box office performance for the Telugu movie "${movieName}".
+        Use your knowledge of the stars, director, production house, and current Tollywood market trends.
+
+        Return a JSON object with the following structure:
+        {
+            "movieName": "${movieName}",
+            "predictedReleaseDate": "Expected release period (e.g. Sankranti 2025)",
+            "openingDayEstimate": "Estimated Day 1 Gross (e.g. ₹80 Cr)",
+            "lifetimeEstimate": "Estimated Lifetime Gross (e.g. ₹400 Cr+)",
+            "confidence": 85, (Number between 0-100 based on data availability)
+            "trendFactors": [
+                { "name": "Director Track Record", "val": 90, "color": "bg-green-500" },
+                { "name": "Star Power", "val": 85, "color": "bg-green-500" },
+                { "name": "Music/Buzz", "val": 70, "color": "bg-blue-500" },
+                { "name": "Release Timing", "val": 60, "color": "bg-yellow-500" }
+            ],
+            "reasoning": "Short analysis summary.",
+            "graphData": [30, 45, 35, 60, 80, 75, 90, 100, 85, 70] (Array of 10 integers (0-100) representing the relative daily collection trend for first 10 days)
+        }
+        
+        Ensure "val" in trendFactors is 0-100. "color" should be tailwind class like bg-green-500, bg-yellow-500, bg-red-500 based on the score.
+        `;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: 'application/json'
+            }
+        });
+
+        const text = response.text;
+        if (!text) return null;
+        return JSON.parse(text) as BoxOfficeAnalysis;
+    } catch (e) {
+        console.error("Box Office Analysis Error", e);
+        return null;
     }
 };

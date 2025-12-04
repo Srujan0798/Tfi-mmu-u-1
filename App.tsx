@@ -1,22 +1,26 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
-import CalendarView from './components/CalendarView';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
+import LoadingScreen from './components/LoadingScreen';
 import FloatingChat from './components/FloatingChat';
 import EventModal from './components/EventModal';
-import LiveHub from './components/LiveHub';
-import MediaHub from './components/MediaHub';
-import ProfileView from './components/ProfileView';
-import Onboarding from './components/Onboarding';
-import GamificationHub from './components/GamificationHub';
-import DeveloperTools from './components/DeveloperTools';
 import NotificationCenter from './components/NotificationCenter';
 import GlobalSearch from './components/GlobalSearch';
-import CreatorStudio from './components/CreatorStudio';
-import CommunityHub from './components/CommunityHub';
 import SubscriptionModal from './components/SubscriptionModal';
 import InstallModal from './components/InstallModal';
-import AILab from './components/AILab';
+import ErrorBoundary from './components/ErrorBoundary';
 import { TFIEvent, EventCategory, CreatorTimeline, ViewMode, UserPreferences } from './types';
+
+// --- Lazy Load Components (Code Splitting) ---
+const CalendarView = React.lazy(() => import('./components/CalendarView'));
+const LiveHub = React.lazy(() => import('./components/LiveHub'));
+const MediaHub = React.lazy(() => import('./components/MediaHub'));
+const ProfileView = React.lazy(() => import('./components/ProfileView'));
+const GamificationHub = React.lazy(() => import('./components/GamificationHub'));
+const DeveloperTools = React.lazy(() => import('./components/DeveloperTools'));
+const CreatorStudio = React.lazy(() => import('./components/CreatorStudio'));
+const CommunityHub = React.lazy(() => import('./components/CommunityHub'));
+const AILab = React.lazy(() => import('./components/AILab'));
+const Onboarding = React.lazy(() => import('./components/Onboarding'));
 
 // Mock Creators / Timelines
 const MOCK_TIMELINES: CreatorTimeline[] = [
@@ -203,7 +207,7 @@ const App: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleSaveEvent = (savedEvent: TFIEvent) => {
+  const handleSaveEvent = (savedEvent: TFIEvent, shouldClose = true) => {
     if (savedEvent.timelineId !== 'user') {
         const newEvent = { ...savedEvent, timelineId: 'user', id: Date.now().toString() };
         setUserEvents(prev => [...prev, newEvent]);
@@ -217,7 +221,9 @@ const App: React.FC = () => {
             }
         });
     }
-    setIsModalOpen(false);
+    if (shouldClose) {
+        setIsModalOpen(false);
+    }
   };
 
   const handleDeleteEvent = (id: string) => {
@@ -233,14 +239,8 @@ const App: React.FC = () => {
       );
   };
 
-  if (!userPreferences?.hasCompletedOnboarding) {
-      return <Onboarding onComplete={handleOnboardingComplete} />;
-  }
-
-  // --- Localization Helpers ---
   const t = (key: string) => {
       if (lang === 'EN') return key;
-      // Simple Mock Translations for Demo
       const dict: Record<string, string> = {
           'Calendar': 'క్యాలెండర్',
           'Trending': 'ట్రెండింగ్',
@@ -255,259 +255,177 @@ const App: React.FC = () => {
       return dict[key] || key;
   };
 
+  // Onboarding Check with Suspense Wrapper
+  if (!userPreferences?.hasCompletedOnboarding) {
+      return (
+        <ErrorBoundary>
+            <Suspense fallback={<div className="h-screen w-screen bg-slate-950 flex items-center justify-center text-white">Loading TFI Brain...</div>}>
+                <Onboarding onComplete={handleOnboardingComplete} />
+            </Suspense>
+        </ErrorBoundary>
+      );
+  }
+
+  // --- UI Components for App Shell ---
+
+  const NavItem = ({ mode, icon, label, badge }: { mode: ViewMode, icon: string, label: string, badge?: string }) => (
+      <button 
+        onClick={() => setViewMode(mode)}
+        className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-3 transition-all group ${viewMode === mode ? 'bg-slate-800/80 text-white shadow-sm ring-1 ring-white/10' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`}
+      >
+          <span className={`material-icons-round text-lg ${viewMode === mode ? 'text-yellow-500' : 'text-slate-500 group-hover:text-slate-300'}`}>{icon}</span>
+          <div className="flex-grow flex justify-between items-center">
+              <span className="text-sm font-medium">{t(label)}</span>
+              {badge ? (
+                  <span className="text-[9px] bg-red-500 text-white px-1.5 rounded-full">{badge}</span>
+              ) : (
+                  <span className="material-icons-round text-slate-600 text-sm opacity-0 group-hover:opacity-100 transition-opacity">chevron_right</span>
+              )}
+          </div>
+      </button>
+  );
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-950 text-slate-200 font-sans selection:bg-yellow-500/30">
       
-      {/* LEFT SIDEBAR: Nav & Filters */}
-      <div className={`
-          flex-col w-72 bg-slate-950 border-r border-slate-800 z-10 transition-all duration-300 absolute lg:relative h-full
+      {/* --- APP SHELL: SIDEBAR --- */}
+      <aside className={`
+          flex-col w-72 bg-slate-950/50 backdrop-blur-xl border-r border-slate-800/50 z-20 transition-all duration-300 absolute lg:relative h-full
           ${isLeftSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
           flex
       `}>
-          <div className="p-6 pb-2">
-             <div className="flex items-center gap-3 mb-8">
-                 <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
-                    <span className="material-icons-round text-slate-900 text-xl">movie_filter</span>
+          {/* Brand Header */}
+          <div className="p-5 pb-2">
+             <div className="flex items-center gap-3 mb-6">
+                 <div className="w-9 h-9 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-lg flex items-center justify-center shadow-lg shadow-orange-500/20 ring-1 ring-white/10">
+                    <span className="material-icons-round text-slate-900 text-lg">movie_filter</span>
                  </div>
                  <div className="flex-grow">
                     <div className="flex items-center justify-between">
-                        <h1 className="text-xl font-bold text-white tracking-tight leading-none">TFI <span className="text-yellow-500">Timeline</span></h1>
-                        <button 
-                            onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-                            className={`hover:text-white ${isNotificationOpen ? 'text-yellow-500' : 'text-slate-500'}`}
-                        >
-                            <span className="material-icons-round text-sm">notifications_active</span>
-                        </button>
+                        <h1 className="text-lg font-bold text-white tracking-tight">TFI <span className="text-yellow-500">Timeline</span></h1>
+                        <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" title="System Online"></div>
                     </div>
-                    <p className="text-[10px] text-slate-500 font-bold tracking-widest uppercase mt-1">{t('The Industry Brain')}</p>
+                    <p className="text-[10px] text-slate-500 font-bold tracking-widest uppercase">{t('The Industry Brain')}</p>
                  </div>
              </div>
 
-             {/* Language Toggle */}
-             <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-800 mb-6 mx-2">
-                 <button 
-                    onClick={() => setLang('EN')} 
-                    className={`flex-1 py-1 text-xs font-bold rounded ${lang === 'EN' ? 'bg-slate-800 text-white' : 'text-slate-500'}`}
-                 >
-                     English
-                 </button>
-                 <button 
-                    onClick={() => setLang('TE')} 
-                    className={`flex-1 py-1 text-xs font-bold rounded ${lang === 'TE' ? 'bg-slate-800 text-white' : 'text-slate-500'}`}
-                 >
-                     తెలుగు
-                 </button>
+             {/* Context Switcher (Lang) */}
+             <div className="flex bg-slate-900/80 rounded-lg p-1 border border-slate-800/50 mb-6">
+                 <button onClick={() => setLang('EN')} className={`flex-1 py-1 text-[10px] font-bold rounded ${lang === 'EN' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500'}`}>ENG</button>
+                 <button onClick={() => setLang('TE')} className={`flex-1 py-1 text-[10px] font-bold rounded ${lang === 'TE' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500'}`}>TEL</button>
              </div>
 
-             <div className="space-y-1">
-                  <button 
-                    onClick={() => setViewMode(ViewMode.CALENDAR)}
-                    className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 transition-all ${viewMode === ViewMode.CALENDAR ? 'bg-slate-800 text-yellow-400 font-semibold shadow-sm ring-1 ring-slate-700' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
-                  >
-                      <span className="material-icons-round text-lg">calendar_month</span>
-                      <div className="flex-grow flex justify-between items-center">
-                          <span>{t('Calendar')}</span>
-                          <span className="material-icons-round text-slate-600 text-sm">chevron_right</span>
-                      </div>
-                  </button>
-                  <button 
-                    onClick={() => setViewMode(ViewMode.LIVE)}
-                    className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 transition-all ${viewMode === ViewMode.LIVE ? 'bg-slate-800 text-blue-400 font-semibold shadow-sm ring-1 ring-slate-700' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
-                  >
-                      <span className="material-icons-round text-lg">local_fire_department</span>
-                      <div className="flex-grow flex justify-between items-center">
-                          <span>{t('Trending')}</span>
-                          <span className="material-icons-round text-slate-600 text-sm">chevron_right</span>
-                      </div>
-                  </button>
-                  <button 
-                    onClick={() => setViewMode(ViewMode.MEDIA)}
-                    className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 transition-all ${viewMode === ViewMode.MEDIA ? 'bg-slate-800 text-pink-400 font-semibold shadow-sm ring-1 ring-slate-700' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
-                  >
-                      <span className="material-icons-round text-lg">play_circle</span>
-                      <div className="flex-grow flex justify-between items-center">
-                          <span>{t('Media Hub')}</span>
-                          <span className="material-icons-round text-slate-600 text-sm">chevron_right</span>
-                      </div>
-                  </button>
-                  <button 
-                    onClick={() => setViewMode(ViewMode.GAMIFICATION)}
-                    className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 transition-all ${viewMode === ViewMode.GAMIFICATION ? 'bg-slate-800 text-purple-400 font-semibold shadow-sm ring-1 ring-slate-700' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
-                  >
-                      <span className="material-icons-round text-lg">emoji_events</span>
-                      <div className="flex-grow flex justify-between items-center">
-                          <span>{t('Fan Zone')}</span>
-                          <span className="material-icons-round text-slate-600 text-sm">chevron_right</span>
-                      </div>
-                  </button>
-                  <button 
-                    onClick={() => setViewMode(ViewMode.COMMUNITY)}
-                    className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 transition-all ${viewMode === ViewMode.COMMUNITY ? 'bg-slate-800 text-indigo-400 font-semibold shadow-sm ring-1 ring-slate-700' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
-                  >
-                      <span className="material-icons-round text-lg">forum</span>
-                      <div className="flex-grow flex justify-between items-center">
-                          <span>{t('Community')}</span>
-                          <span className="material-icons-round text-slate-600 text-sm">chevron_right</span>
-                      </div>
-                  </button>
-                  <button 
-                    onClick={() => setViewMode(ViewMode.CREATOR)}
-                    className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 transition-all ${viewMode === ViewMode.CREATOR ? 'bg-slate-800 text-cyan-400 font-semibold shadow-sm ring-1 ring-slate-700' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
-                  >
-                      <span className="material-icons-round text-lg">movie_creation</span>
-                      <div className="flex-grow flex justify-between items-center">
-                          <span>{t('Creator Studio')}</span>
-                          <span className="material-icons-round text-slate-600 text-sm">chevron_right</span>
-                      </div>
-                  </button>
-                  
-                  {/* AI Lab (New Phase 5) */}
-                   <button 
-                    onClick={() => setViewMode(ViewMode.AI_LAB)}
-                    className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 transition-all ${viewMode === ViewMode.AI_LAB ? 'bg-slate-800 text-pink-500 font-semibold shadow-sm ring-1 ring-slate-700' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
-                  >
-                      <span className="material-icons-round text-lg">science</span>
-                      <div className="flex-grow flex justify-between items-center">
-                          <span>{t('AI Lab')}</span>
-                          <span className="material-icons-round text-slate-600 text-sm">chevron_right</span>
-                      </div>
-                  </button>
-
-                  <button 
-                    onClick={() => setViewMode(ViewMode.PROFILE)}
-                    className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 transition-all ${viewMode === ViewMode.PROFILE ? 'bg-slate-800 text-green-400 font-semibold shadow-sm ring-1 ring-slate-700' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}
-                  >
-                      <span className="material-icons-round text-lg">person</span>
-                      <div className="flex-grow flex justify-between items-center">
-                          <span>{t('Profile')}</span>
-                          <span className="material-icons-round text-slate-600 text-sm">chevron_right</span>
-                      </div>
-                  </button>
-                  
-                  {/* Developer Tools Link */}
-                  <button 
-                    onClick={() => setViewMode(ViewMode.DEV_TOOLS)}
-                    className={`w-full text-left px-4 py-3 rounded-xl flex items-center gap-3 mt-4 transition-all ${viewMode === ViewMode.DEV_TOOLS ? 'bg-slate-800 text-slate-200 font-semibold shadow-sm ring-1 ring-slate-700' : 'text-slate-500 hover:bg-slate-900 hover:text-slate-300'}`}
-                  >
-                      <span className="material-icons-round text-lg">terminal</span>
-                      <div className="flex-grow flex justify-between items-center">
-                          <span className="text-xs font-mono uppercase tracking-wide">Dev Tools</span>
-                          <span className="material-icons-round text-slate-600 text-sm">chevron_right</span>
-                      </div>
-                  </button>
-             </div>
-          </div>
-
-          <div className="px-6 py-4 flex-grow overflow-y-auto">
-              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 px-2">Subscriptions</h3>
-              <div className="space-y-2">
-                  {MOCK_TIMELINES.map(tl => (
-                      <button 
-                          key={tl.id}
-                          onClick={() => toggleTimeline(tl.id)}
-                          className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg transition-colors group ${subscribedTimelines.includes(tl.id) ? 'bg-slate-800/50' : 'hover:bg-slate-900'}`}
-                      >
-                          <div className={`w-2 h-2 rounded-full border-2 ${subscribedTimelines.includes(tl.id) ? `bg-current ${tl.color?.replace('border', 'text')}` : 'border-slate-600 bg-transparent'}`}></div>
-                          <div className="text-left overflow-hidden">
-                              <div className={`text-sm font-medium truncate ${subscribedTimelines.includes(tl.id) ? 'text-slate-200' : 'text-slate-400 group-hover:text-slate-300'}`}>{tl.name}</div>
-                              <div className="text-[10px] text-slate-500 truncate">{tl.handle}</div>
-                          </div>
-                          {subscribedTimelines.includes(tl.id) && <span className="ml-auto material-icons-round text-xs text-slate-500">check</span>}
-                      </button>
-                  ))}
-              </div>
-          </div>
-          
-          {/* Upgrade Banner */}
-          <div className="px-6 pb-2">
-              <button onClick={() => setIsSubscriptionOpen(true)} className="w-full bg-gradient-to-r from-yellow-600 to-orange-600 rounded-lg p-3 text-left group hover:brightness-110 transition-all">
-                  <div className="text-xs font-bold text-white mb-1 flex items-center gap-1">
-                      <span className="material-icons-round text-sm">star</span> Go Premium
+             {/* Navigation Groups */}
+             <div className="space-y-6 overflow-y-auto max-h-[calc(100vh-250px)] custom-scrollbar pr-2">
+                  <div className="space-y-1">
+                      <div className="text-[10px] font-bold text-slate-500 uppercase px-3 mb-2 tracking-wider">Discover</div>
+                      <NavItem mode={ViewMode.CALENDAR} icon="calendar_month" label="Calendar" />
+                      <NavItem mode={ViewMode.LIVE} icon="local_fire_department" label="Trending" />
+                      <NavItem mode={ViewMode.MEDIA} icon="play_circle" label="Media Hub" />
                   </div>
-                  <div className="text-[10px] text-white/80">Support TFI Timeline & remove ads.</div>
+
+                  <div className="space-y-1">
+                      <div className="text-[10px] font-bold text-slate-500 uppercase px-3 mb-2 tracking-wider">Connect</div>
+                      <NavItem mode={ViewMode.GAMIFICATION} icon="emoji_events" label="Fan Zone" badge="3" />
+                      <NavItem mode={ViewMode.COMMUNITY} icon="forum" label="Community" />
+                      <NavItem mode={ViewMode.CREATOR} icon="movie_creation" label="Creator Studio" />
+                  </div>
+
+                  <div className="space-y-1">
+                      <div className="text-[10px] font-bold text-slate-500 uppercase px-3 mb-2 tracking-wider">Intelligence</div>
+                      <NavItem mode={ViewMode.AI_LAB} icon="science" label="AI Lab" />
+                      <NavItem mode={ViewMode.PROFILE} icon="person" label="Profile" />
+                      <NavItem mode={ViewMode.DEV_TOOLS} icon="terminal" label="Dev Tools" />
+                  </div>
+             </div>
+          </div>
+
+          {/* Subscriptions Footer */}
+          <div className="mt-auto px-5 py-4 border-t border-slate-800/50 bg-slate-950/30">
+              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Syncs</h3>
+              <div className="flex -space-x-2 overflow-hidden mb-4">
+                  {MOCK_TIMELINES.map(tl => (
+                      <div key={tl.id} onClick={() => toggleTimeline(tl.id)} className={`w-6 h-6 rounded-full border border-slate-800 bg-slate-700 flex items-center justify-center text-[8px] cursor-pointer hover:z-10 hover:scale-110 transition-transform ${subscribedTimelines.includes(tl.id) ? 'ring-2 ring-blue-500' : 'opacity-50'}`}>
+                          {tl.name[0]}
+                      </div>
+                  ))}
+                  <div className="w-6 h-6 rounded-full border border-slate-800 bg-slate-800 flex items-center justify-center text-[10px] text-slate-400 cursor-pointer hover:text-white">+</div>
+              </div>
+              <button 
+                  onClick={() => setIsSubscriptionOpen(true)}
+                  className="w-full bg-gradient-to-r from-yellow-600/20 to-orange-600/20 hover:from-yellow-600/30 hover:to-orange-600/30 border border-yellow-600/30 rounded-lg p-2 flex items-center gap-2 group transition-all"
+              >
+                  <div className="bg-gradient-to-br from-yellow-500 to-orange-600 w-6 h-6 rounded flex items-center justify-center text-slate-900 shadow-lg">
+                      <span className="material-icons-round text-xs">star</span>
+                  </div>
+                  <div className="text-left">
+                      <div className="text-xs font-bold text-white group-hover:text-yellow-400 transition-colors">Go Premium</div>
+                  </div>
               </button>
           </div>
+      </aside>
 
-          {/* Download App Footer */}
-          <div className="p-4 border-t border-slate-800">
-               <button 
-                    onClick={() => setIsSearchOpen(true)}
-                    className="w-full bg-slate-900 hover:bg-slate-800 text-slate-400 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors border border-slate-800 hover:border-slate-700 mb-2"
-                >
-                   <span className="material-icons-round text-sm">search</span>
-                   <span className="text-xs font-bold">Search (Cmd+K)</span>
-               </button>
-               <button 
-                    onClick={() => setIsInstallModalOpen(true)}
-                    className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
-                >
-                   <span className="material-icons-round text-sm">install_mobile</span>
-                   <span className="text-xs font-bold">Download App</span>
-               </button>
-          </div>
-      </div>
-
-      {/* MAIN CONTENT */}
-      <div className="flex-grow flex flex-col relative w-full h-full bg-slate-950 overflow-hidden">
+      {/* --- MAIN CONTENT AREA --- */}
+      <main className="flex-grow flex flex-col relative w-full h-full bg-slate-950 overflow-hidden">
         
         {/* Mobile Header Toggle */}
-        <div className="lg:hidden flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950">
-            <div className="flex items-center">
-                <button onClick={() => setLeftSidebarOpen(!isLeftSidebarOpen)} className="text-slate-300">
+        <header className="lg:hidden flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-30">
+            <div className="flex items-center gap-3">
+                <button onClick={() => setLeftSidebarOpen(!isLeftSidebarOpen)} className="text-slate-300 hover:text-white">
                     <span className="material-icons-round">menu</span>
                 </button>
-                <span className="ml-4 font-bold text-lg">TFI Timeline</span>
+                <span className="font-bold text-lg tracking-tight">TFI Timeline</span>
             </div>
-            <button 
-                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-                className="text-slate-300"
-            >
+            <button onClick={() => setIsNotificationOpen(!isNotificationOpen)} className="text-slate-300 relative">
                 <span className="material-icons-round">notifications</span>
+                <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
+            </button>
+        </header>
+
+        {/* Viewport with Suspense & Error Boundaries */}
+        <div className="flex-grow relative overflow-hidden">
+            <ErrorBoundary>
+                <Suspense fallback={<LoadingScreen />}>
+                    {viewMode === ViewMode.CALENDAR && (
+                        <CalendarView 
+                            events={displayedEvents} 
+                            onAddEvent={handleDateClick}
+                            onEventClick={handleEventClick}
+                        />
+                    )}
+                    {viewMode === ViewMode.LIVE && <LiveHub onAddRumor={() => handleDateClick(new Date())} />}
+                    {viewMode === ViewMode.MEDIA && <MediaHub />}
+                    {viewMode === ViewMode.PROFILE && <ProfileView preferences={userPreferences} userEvents={userEvents} />}
+                    {viewMode === ViewMode.GAMIFICATION && <GamificationHub />}
+                    {viewMode === ViewMode.DEV_TOOLS && <DeveloperTools />}
+                    {viewMode === ViewMode.CREATOR && <CreatorStudio />}
+                    {viewMode === ViewMode.COMMUNITY && <CommunityHub />}
+                    {viewMode === ViewMode.AI_LAB && <AILab />}
+                </Suspense>
+            </ErrorBoundary>
+        </div>
+
+        {/* --- GLOBAL OVERLAYS --- */}
+        
+        {/* Command Menu Trigger (Desktop) */}
+        <div className="absolute bottom-6 right-6 hidden lg:flex flex-col gap-3 z-30">
+             <button 
+                onClick={() => setIsInstallModalOpen(true)}
+                className="w-10 h-10 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-full flex items-center justify-center shadow-lg border border-slate-700 transition-all hover:scale-105"
+                title="Install App"
+            >
+                <span className="material-icons-round text-lg">download</span>
+            </button>
+            <button 
+                onClick={() => setIsSearchOpen(true)}
+                className="bg-slate-900/90 backdrop-blur hover:bg-slate-800 text-slate-400 hover:text-white px-4 py-2 rounded-full shadow-xl border border-slate-700 flex items-center gap-2 transition-all hover:scale-105 group"
+            >
+                <span className="material-icons-round text-lg group-hover:text-blue-400">search</span>
+                <span className="text-xs font-mono">Cmd+K</span>
             </button>
         </div>
 
-        {/* View Switcher */}
-        {viewMode === ViewMode.CALENDAR && (
-            <CalendarView 
-                events={displayedEvents} 
-                onAddEvent={handleDateClick}
-                onEventClick={handleEventClick}
-            />
-        )}
-        
-        {viewMode === ViewMode.LIVE && (
-            <LiveHub onAddRumor={() => handleDateClick(new Date())} />
-        )}
-
-        {viewMode === ViewMode.MEDIA && (
-            <MediaHub />
-        )}
-
-        {viewMode === ViewMode.PROFILE && (
-            <ProfileView preferences={userPreferences} userEvents={userEvents} />
-        )}
-        
-        {viewMode === ViewMode.GAMIFICATION && (
-            <GamificationHub />
-        )}
-
-        {viewMode === ViewMode.DEV_TOOLS && (
-            <DeveloperTools />
-        )}
-
-        {viewMode === ViewMode.CREATOR && (
-            <CreatorStudio />
-        )}
-
-        {viewMode === ViewMode.COMMUNITY && (
-            <CommunityHub />
-        )}
-
-        {viewMode === ViewMode.AI_LAB && (
-            <AILab />
-        )}
-        
-        {/* Floating AI Chat (Global) */}
+        {/* Floating AI Chat */}
         <FloatingChat 
             onEventProposed={addProposedEvent} 
             userPreferences={userPreferences}
@@ -523,12 +441,13 @@ const App: React.FC = () => {
           selectedDate={selectedDate}
         />
 
-        {/* Global Overlays */}
+        {/* Notification Panel */}
         <NotificationCenter 
             isOpen={isNotificationOpen} 
             onClose={() => setIsNotificationOpen(false)} 
         />
         
+        {/* Command Palette */}
         <GlobalSearch 
             isOpen={isSearchOpen}
             onClose={() => setIsSearchOpen(false)}
@@ -536,17 +455,11 @@ const App: React.FC = () => {
             onSelectEvent={handleEventClick}
         />
 
-        <SubscriptionModal 
-            isOpen={isSubscriptionOpen}
-            onClose={() => setIsSubscriptionOpen(false)}
-        />
+        {/* Other Modals */}
+        <SubscriptionModal isOpen={isSubscriptionOpen} onClose={() => setIsSubscriptionOpen(false)} />
+        <InstallModal isOpen={isInstallModalOpen} onClose={() => setIsInstallModalOpen(false)} />
 
-        <InstallModal 
-            isOpen={isInstallModalOpen}
-            onClose={() => setIsInstallModalOpen(false)}
-        />
-
-      </div>
+      </main>
     </div>
   );
 };
